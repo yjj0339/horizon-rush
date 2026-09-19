@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>疾驰地平线 · 都会嘉年华</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>🏎️</text></svg>">
 <link rel="stylesheet" href="style.css">
 <script type="importmap">
 { "imports": {
@@ -30,6 +31,7 @@
     <div class="menu-card">
       <h1>疾驰地平线 <em>都会嘉年华</em></h1>
       <p class="sub">HORIZON RUSH FESTIVAL · 开放世界自由狂飙</p>
+      <p class="records" id="records"></p>
       <div class="paint-row" id="paint-row"></div>
       <div class="menu-btns">
         <button id="btn-start" class="primary">进入嘉年华</button>
@@ -45,6 +47,11 @@
 
   <!-- HUD -->
   <div id="hud" class="hidden">
+    <div id="topbtns">
+      <div class="tbtn mini" id="tb-pause">⏸</div>
+      <div class="tbtn mini" id="tb-cam">📷</div>
+      <div class="tbtn mini" id="tb-mute">🔊</div>
+    </div>
     <canvas id="minimap" width="196" height="196"></canvas>
     <div id="msg"></div>
     <div id="score-panel">
