@@ -16,18 +16,18 @@ export function loadVehicles() {
 
 function prepareCar(scene) {
   const wheels = {};
-  let paint = null, glass = null;
+  const mats = {};
   scene.traverse(o => {
     if (o.isMesh) {
       o.castShadow = true;
-      if (o.material && o.material.name === 'Paint') paint = o.material;
-      if (o.material && o.material.name === 'Glass') glass = o.material;
+      if (o.material && o.material.name) mats[o.material.name] = o.material;
     }
     const m = /^Wheel(FL|FR|RL|RR)$/.exec(o.name);
     if (m) (wheels[m[1]] = wheels[m[1]] || {}).pivot = o;
     const s = /^Spin(FL|FR|RL|RR)$/.exec(o.name);
     if (s) (wheels[s[1]] = wheels[s[1]] || {}).spin = o;
   });
+  const paint = mats.Paint, glass = mats.Glass, tail = mats.Tail;
   // 提升车漆/玻璃质感（GLB PBR 之上微调）
   if (paint) {
     paint.clearcoat = 0.8; paint.clearcoatRoughness = 0.08;
@@ -35,6 +35,7 @@ function prepareCar(scene) {
     paint.envMapIntensity = 0.7;
   }
   if (glass) { glass.envMapIntensity = 1.6; glass.roughness = 0.06; }
+  if (tail) { tail.emissiveIntensity = 2.2; }   // 刹车时由 main 调亮
 
   // 霓虹底盘灯
   const glowCv = document.createElement('canvas');
@@ -56,7 +57,7 @@ function prepareCar(scene) {
   glow.visible = false;
   scene.add(glow);
 
-  return { group: scene, wheels, paint, glow };
+  return { group: scene, wheels, paint, tail, glow };
 }
 
 export function setPaint(car, hex) {
