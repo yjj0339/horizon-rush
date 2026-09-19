@@ -31,9 +31,12 @@ function putFile(fp, tries) {
   const b64 = readWithinRoot(fp).toString('base64');
   for (let i = 1; i <= (tries || 4); i++) {
     try {
-      execFileSync('gh', ['api', '-X', 'PUT', 'repos/' + REPO + '/contents/' + fp,
-        '-f', 'message=deploy: ' + fp, '-f', 'branch=main',
-        '-f', 'content=' + b64], { maxBuffer: 64 * 1024 * 1024 });
+      // JSON 请求体走 stdin，避开 Windows 命令行长度限制
+      const body = JSON.stringify({
+        message: 'deploy: ' + fp, branch: 'main', content: b64,
+      });
+      execFileSync('gh', ['api', '-X', 'PUT', 'repos/' + REPO + '/contents/' + fp, '--input', '-'],
+        { input: body, maxBuffer: 64 * 1024 * 1024 });
       return true;
     } catch (e) {
       const msg = String((e && e.stderr) || e.message || e);
