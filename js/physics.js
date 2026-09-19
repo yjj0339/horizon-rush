@@ -17,6 +17,7 @@ export class CarPhysics {
     this.slopePitch = 0; this.slopeRoll = 0;
     this.lastGroundH = 0; this.groundSlope = 0;
     this.crashImpulse = 0;                // 碰撞抖动用
+    this.lastOnRoad = true;
   }
 
   forward() { return { x: Math.sin(this.heading), z: Math.cos(this.heading) }; }
@@ -36,13 +37,14 @@ export class CarPhysics {
     const nitroOn = input.nitro && this.nitro > 0 && input.throttle > 0 && !this.airborne;
     const vmax = nitroOn ? C.nitroMax : C.maxSpeed;
     let a = 0;
-    if (input.throttle) a += (C.accel + (nitroOn ? C.nitroAccel : 0)) * Math.max(0, 1 - vF / vmax);
-    if (input.brake) {
-      if (vF > 1) a -= C.brake;
-      else a -= C.accel * 0.5 * Math.max(0, 1 + vF / 14); // 倒车
+    const offRoad = this.lastOnRoad ? 1 : 0.82;   // 越野动力衰减
+    if (input.throttle > 0) a += (C.accel + (nitroOn ? C.nitroAccel : 0)) * input.throttle * offRoad * Math.max(0, 1 - vF / vmax);
+    if (input.brake > 0) {
+      if (vF > 1) a -= C.brake * input.brake;
+      else a -= C.accel * 0.5 * input.brake * Math.max(0, 1 + vF / 14); // 倒车
     }
     a -= 0.0004 * vF * Math.abs(vF);                       // 风阻
-    a -= Math.sign(vF) * Math.min(Math.abs(vF), 0.25);     // 滚阻
+    a -= Math.sign(vF) * Math.min(Math.abs(vF), this.lastOnRoad ? 0.25 : 1.6); // 滚阻（越野更大）
     if (!this.airborne) {
       // 坡度阻力
       a -= 9.8 * this.groundSlope * 0.55;
@@ -97,6 +99,7 @@ export class CarPhysics {
       } else {
         this.pos.y = g.h;
         this.groundSlope = g.slopeAlong(nf.x, nf.z);
+        this.lastOnRoad = g.onRoad !== false;
       }
     }
     // 车身姿态（贴坡）
