@@ -31,16 +31,21 @@ function putFile(fp, tries) {
   const b64 = readWithinRoot(fp).toString('base64');
   for (let i = 1; i <= (tries || 4); i++) {
     try {
+      // 已存在的文件带上 sha 才能覆盖更新
+      let sha;
+      try {
+        sha = JSON.parse(execFileSync('gh', ['api', 'repos/' + REPO + '/contents/' + fp + '?ref=main'],
+          { maxBuffer: 64 * 1024 * 1024 }).toString()).sha;
+      } catch (e) { /* 新文件无 sha */ }
       // JSON 请求体走 stdin，避开 Windows 命令行长度限制
-      const body = JSON.stringify({
-        message: 'deploy: ' + fp, branch: 'main', content: b64,
-      });
+      const body = JSON.stringify(Object.assign(
+        { message: 'deploy: ' + fp, branch: 'main', content: b64 },
+        sha ? { sha } : {}));
       execFileSync('gh', ['api', '-X', 'PUT', 'repos/' + REPO + '/contents/' + fp, '--input', '-'],
         { input: body, maxBuffer: 64 * 1024 * 1024 });
       return true;
     } catch (e) {
       const msg = String((e && e.stderr) || e.message || e);
-      if (msg.includes('422')) return true;   // 已存在且内容相同
       console.log('  retry', fp, i, msg.slice(0, 120));
       if (i === (tries || 4)) return false;
       const spinStart = Date.now();
