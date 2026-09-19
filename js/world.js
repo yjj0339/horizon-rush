@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CFG, clamp, lerp, smoothstep } from './config.js';
-import { RNG, fbm, canvasTex, softDotTex } from './utils.js';
+import { RNG, fbm, vnoise, canvasTex, softDotTex } from './utils.js';
 import { CITY_STREETS, CITY_EXT, AVENUES, FEST_ROAD, COAST_ROAD, RING_GAPS, roadDist } from './roads.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 
@@ -14,6 +14,13 @@ const RAMP_DEFS = [
   { x: 30,   z: 470,  dir: Math.PI / 2,  w: 8, len: 14, h: 3.0 },  // 嘉年华大跳台
 ];
 // dir: 坡道上升方向（游戏坐标方位角，x=sin, z=cos）
+
+// 整数网格哈希（农田色块用）
+function hash2i(x, y) {
+  let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0;
+  h = (h ^ (h >> 13)) | 0; h = Math.imul(h, 1274126177);
+  return ((h ^ (h >> 16)) >>> 0) / 4294967296;
+}
 
 function baseHeight(x, z) {
   const r = Math.hypot(x, z);
@@ -57,6 +64,7 @@ export function groundInfo(x, z) {
   const e = 1.2;
   return {
     h,
+    onRoad: roadDist(x, z) < 3 && h < 0.4,
     slopeAlong(dx, dz) {
       return (groundH(x + dx * e, z + dz * e) - groundH(x - dx * e, z - dz * e)) / (2 * e);
     },
@@ -186,6 +194,9 @@ export class World {
     const sand = new THREE.Color(1.35, 1.18, 0.82);
     const seabed = new THREE.Color(0.75, 0.72, 0.55);
     const cityTint = new THREE.Color(0.92, 0.92, 0.94);
+    const wheat = new THREE.Color(1.38, 1.14, 0.55);  // 麦田
+    const deep = new THREE.Color(0.72, 0.95, 0.72);   // 深绿作物
+    const dry = new THREE.Color(1.22, 1.02, 0.82);    // 干草
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
       const h = baseHeight(x, z);
@@ -194,6 +205,17 @@ export class World {
       const bx = smoothstep(CFG.coast.beachX - 14, CFG.coast.seaX - 30, x);
       if (bx > 0) c = h < -0.7 ? seabed : sand;
       else if (x > CITY_EXT.x1 - 30 && x < CITY_EXT.x2 + 30 && z > CITY_EXT.z1 - 30 && z < CITY_EXT.z2 + 30) c = cityTint;
+      else {
+        // 郊野农田：140m 网格 plots，麦色/深绿/干草色块（地平线式田园观感）
+        const r = Math.hypot(x, z);
+        if (r > 740 && roadDist(x, z) > 26) {
+          const fx = Math.floor(x / 140), fz = Math.floor(z / 140);
+          const v = hash2i(fx, fz);
+          if (v < 0.3) c = wheat;
+          else if (v < 0.55) c = deep;
+          else if (v < 0.75) c = dry;
+        }
+      }
       colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -473,6 +495,8 @@ export class World {
       }
     }
     const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S = new THREE.Vector3();
+    const tint = new THREE.Color();
+    const beacons = [];
     lists.forEach((list, k) => {
       if (!list.length) return;
       const mat = new THREE.MeshStandardMaterial({ map: facades[k], roughness: 0.78, metalness: 0.08, envMapIntensity: 0.5 });
@@ -481,11 +505,32 @@ export class World {
         Q.identity(); V.set(x, 0.05, z); S.set(w, h, d);
         M.compose(V, Q, S);
         im.setMatrixAt(i, M);
+        // 逐栋明暗/色温微差，打破复制感
+        tint.setHSL(0.58 + (rng() - 0.5) * 0.06, 0.06 + rng() * 0.05, 0.72 + (rng() - 0.5) * 0.22);
+        im.setColorAt(i, tint);
+        if (h > 95) beacons.push([x, h + 0.05, z]);
       });
       im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.castShadow = true; im.receiveShadow = true;
       this.scene.add(im);
     });
+    // 超高层楼顶航空警示灯（呼吸闪烁，泛光下很出效果）
+    if (beacons.length) {
+      const bm = new THREE.InstancedMesh(
+        new THREE.SphereGeometry(0.7, 10, 8),
+        new THREE.MeshStandardMaterial({ color: 0x30060a, emissive: 0xff2020, emissiveIntensity: 4 }),
+        beacons.length);
+      beacons.forEach(([x, y, z], i) => {
+        V.set(x, y, z); S.set(1, 1, 1); Q.identity();
+        M.compose(V, Q, S);
+        bm.setMatrixAt(i, M);
+      });
+      bm.instanceMatrix.needsUpdate = true;
+      this.scene.add(bm);
+      this.beaconMat = bm.material;
+      this.anim.push((dt, t) => { this.beaconMat.emissiveIntensity = 2.5 + Math.sin(t * 2.4) * 2.5; });
+    }
     // 楼顶设备间
     if (roofs.length) {
       const rim = new THREE.InstancedMesh(
@@ -639,8 +684,8 @@ export class World {
       (() => {
         const t = canvasTex(512, 512, (g) => {
           g.fillStyle = '#b9ac95'; g.fillRect(0, 0, 512, 512);
-          for (let i = 0; i < 3000; i++) {
-            g.fillStyle = ['#e8572a', '#ffc53c', '#12b5a8', '#8a5be2'][i % 4] + '55';
+          for (let i = 0; i < 1500; i++) {
+            g.fillStyle = ['#e8572a', '#ffc53c', '#12b5a8', '#8a5be2'][i % 4] + '44';
             g.fillRect(Math.random() * 512, Math.random() * 512, 5, 5);
           }
         });
@@ -886,17 +931,55 @@ export class World {
 
   // ---------- 海水 & 远山 ----------
   buildWaterAndMountains() {
+    // 程序生成可平铺的水面法线图（周期噪声，接缝不可见）
+    const N = 256, CELLS = 20;
+    const hgt = new Float32Array(N * N);
+    const cell = (v, m) => ((v % m) + m) % m;
+    const pfade = t => t * t * (3 - 2 * t);
+    const pnoise = (fx, fy, cells) => {
+      const xi = Math.floor(fx), yi = Math.floor(fy);
+      const xf = fx - xi, yf = fy - yi;
+      const w = (dx, dy) => {
+        const gx = cell(xi + dx, cells), gy = cell(yi + dy, cells);
+        return hash2i(gx * 7349 + 11, gy * 9241 + 7);
+      };
+      const u = pfade(xf), v = pfade(yf);
+      return (w(0, 0) * (1 - u) + w(1, 0) * u) * (1 - v) + (w(0, 1) * (1 - u) + w(1, 1) * u) * v;
+    };
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const fx = x / N * CELLS, fy = y / N * CELLS;
+      hgt[y * N + x] = pnoise(fx, fy, CELLS) + 0.5 * pnoise(fx * 2.5, fy * 2.5, CELLS * 2.5);
+    }
+    const nv = new Uint8Array(N * N * 4);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const l = hgt[y * N + ((x - 1 + N) % N)], r = hgt[y * N + ((x + 1) % N)];
+      const u = hgt[((y - 1 + N) % N) * N + x], d = hgt[((y + 1) % N) * N + x];
+      const nx = (l - r) * 1.6, ny = (u - d) * 1.6;
+      const inv = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+      const o = (y * N + x) * 4;
+      nv[o] = (nx * inv * 0.5 + 0.5) * 255;
+      nv[o + 1] = (ny * inv * 0.5 + 0.5) * 255;
+      nv[o + 2] = (inv * 0.5 + 0.5) * 255;
+      nv[o + 3] = 255;
+    }
+    const ntex = new THREE.DataTexture(nv, N, N);
+    ntex.wrapS = ntex.wrapT = THREE.RepeatWrapping;
+    ntex.repeat.set(46, 46);
+    ntex.needsUpdate = true;
+
     const water = new THREE.Mesh(
       new THREE.PlaneGeometry(3600, 3600),
       new THREE.MeshStandardMaterial({
         color: 0x3f96c8, roughness: 0.12, metalness: 0.05,
         transparent: true, opacity: 0.94, envMapIntensity: 1.2,
+        normalMap: ntex, normalScale: new THREE.Vector2(0.55, 0.55),
       }));
     water.rotation.x = -Math.PI / 2;
     water.position.y = CFG.coast.seaY;
     this.scene.add(water);
     this.anim.push((dt, t) => {
       water.position.y = CFG.coast.seaY + Math.sin(t * 0.6) * 0.05;
+      ntex.offset.set(t * 0.006, t * 0.004);
     });
 
     // 远山环
@@ -920,6 +1003,37 @@ export class World {
       }
     }
     this.scene.add(grp);
+
+    // ---- 郊野风力发电机 ----
+    const wtM = new THREE.MeshStandardMaterial({ color: 0xeef2f5, roughness: 0.5, metalness: 0.2 });
+    for (const [wx, wz] of [[830, -430], [975, -140], [-820, -760], [-1010, -420], [-880, 620]]) {
+      const gy = baseHeight(wx, wz);
+      const tur = new THREE.Group();
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 2.0, 46, 10), wtM);
+      pole.position.y = 23;
+      pole.castShadow = true;
+      tur.add(pole);
+      const nac = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.4, 5.5), wtM);
+      nac.position.y = 46;
+      tur.add(nac);
+      const rotor = new THREE.Group();
+      rotor.position.set(0, 46, 3.1);
+      for (let b = 0; b < 3; b++) {
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(1.5, 19, 0.4), wtM);
+        blade.position.y = 9.5;
+        const arm = new THREE.Group();
+        arm.rotation.z = b / 3 * Math.PI * 2;
+        arm.add(blade);
+        rotor.add(arm);
+      }
+      tur.add(rotor);
+      tur.position.set(wx, gy, wz);
+      tur.rotation.y = this.rng() * Math.PI * 2;
+      this.scene.add(tur);
+      const spd = 0.5 + this.rng() * 0.5;
+      this.anim.push((dt) => { rotor.rotation.z += dt * spd; });
+      this.poles.add(wx, wz, 2.4, 'turbine');
+    }
   }
 
   // ---------- 小地图底图 ----------
