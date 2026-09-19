@@ -25,9 +25,10 @@ const loadText = document.getElementById('load-text');
 const progress = (p, t) => { loadFill.style.width = (p * 100) + '%'; if (t) loadText.textContent = t; };
 
 // ---------- 渲染器 ----------
+const IS_TOUCH = ('ontouchstart' in window) && matchMedia('(pointer:coarse)').matches;
 const canvas = document.getElementById('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -40,6 +41,23 @@ const camera = new THREE.PerspectiveCamera(CFG.cam.fov, innerWidth / innerHeight
 // ---------- 世界 ----------
 progress(0.02, '点燃引擎…');
 const world = new World(scene, renderer, progress);
+
+// ---------- 历史纪录（localStorage 存档） ----------
+const save = (() => {
+  let data = { best: 0, top: 0, boards: 0 };
+  try { Object.assign(data, JSON.parse(localStorage.getItem('horizon-rush-save') || '{}')); } catch (e) {}
+  let dirty = 0;
+  return {
+    get: () => data,
+    flush() {
+      if (skillScore > data.best) data.best = skillScore | 0;
+      if (topSpeed > data.top) data.top = topSpeed | 0;
+      if (boardsHit > data.boards) data.boards = boardsHit;
+      clearTimeout(dirty);
+      dirty = setTimeout(() => { try { localStorage.setItem('horizon-rush-save', JSON.stringify(data)); } catch (e) {} }, 1500);
+    },
+  };
+})();
 
 // ---------- 主流程 ----------
 let car, phys, traffic, skids, smoke, flames, hud;
@@ -168,6 +186,14 @@ document.getElementById('btn-glow').onclick = () => {
   document.getElementById('btn-glow').textContent = `霓虹底盘灯：${glowOn ? '开' : '关'}`;
   if (car) car.glow.visible = glowOn;
 };
+// 菜单里展示历史纪录
+{
+  const r = save.get();
+  const el = document.getElementById('records');
+  if (el) el.textContent = r.best || r.top
+    ? `历史纪录：技巧分 ${r.best | 0} · 极速 ${r.top | 0} km/h · 单局奖励牌 ${r.boards | 0}/12`
+    : '首次出赛，去创造你的纪录吧！';
+}
 document.getElementById('btn-start').onclick = startGame;
 function startGame() {
   audio.ensure();
@@ -178,18 +204,29 @@ function startGame() {
 }
 
 // ---------- 按键 ----------
+function cycleCam() { camMode = (camMode + 1) % 3; }
+function togglePause() {
+  if (state !== 'play') return;
+  paused = !paused;
+  document.getElementById('pause').classList.toggle('hidden', !paused);
+}
 addEventListener('keydown', e => {
-  if (e.code === 'KeyC') camMode = (camMode + 1) % 3;
+  if (e.code === 'KeyC') cycleCam();
   if (e.code === 'KeyR') resetCar();
   if (e.code === 'KeyG') { glowOn = !glowOn; if (car) car.glow.visible = glowOn; }
   if (e.code === 'KeyM') audio.toggleMute();
-  if (e.code === 'Escape' && state === 'play') {
-    paused = !paused;
-    document.getElementById('pause').classList.toggle('hidden', !paused);
-  }
+  if (e.code === 'Escape') togglePause();
   if (state === 'menu' && (e.code === 'Enter' || e.code === 'Space')) startGame();
 });
 addEventListener('pointerdown', () => audio.ensure(), { once: true });
+// 触屏顶部小按钮（暂停 / 视角 / 静音）
+document.getElementById('tb-pause').onclick = togglePause;
+document.getElementById('tb-cam').onclick = cycleCam;
+document.getElementById('tb-mute').onclick = () => {
+  const m = audio.toggleMute();
+  document.getElementById('tb-mute').textContent = m ? '🔇' : '🔊';
+};
+document.getElementById('pause').onclick = togglePause;
 
 function resetCar() {
   // 找最近的道路点复位
@@ -250,11 +287,17 @@ function collide(dt) {
     const vn = phys.vel.x * nx + phys.vel.y * nz;
     phys.vel.x -= vn * nx * 1.3; phys.vel.y -= vn * nz * 1.3;
   }
-  // 海水：减速推回
-  if (p.x > CFG.coast.seaX - 40 && groundH(p.x, p.z) < -0.5) {
-    phys.vel.multiplyScalar(Math.exp(-2.5 * dt));
-    phys.vel.x -= 8 * dt;
-    if (p.x > CFG.coast.seaX + 30) p.x = CFG.coast.seaX + 30;
+  // 海水：禁止下海——硬边界 + 推回 + 水花
+  if (p.x > 742 && groundH(p.x, p.z) < -0.5) {
+    p.x = Math.min(p.x, 742);
+    if (phys.vel.x > 0) phys.vel.x = 0;
+    phys.vel.multiplyScalar(Math.exp(-4 * dt));
+    if (Math.random() < 0.5) smoke.emit(p.x - 1, p.y + 0.2, p.z, 1.6, 2.2, 0.8);
+    const now = Date.now();
+    if (!collide._seaMsg || now - collide._seaMsg > 3000) {
+      collide._seaMsg = now;
+      hud.msg('前浪滔天，回到岸上！', 1500);
+    }
   }
   // 世界边界
   const rr = Math.hypot(p.x, p.z);
@@ -312,7 +355,8 @@ function skills(dt) {
       skillScore += 500;
       hud.msg(`奖励牌 +500（${boardsHit}/12）`, 2200);
       audio.blip(980);
-      for (let i = 0; i < 10; i++) smoke.spawn(b.x, b.y - 1, b.z, 2, 1.2, 0.9);
+      for (let i = 0; i < 10; i++) smoke.emit(b.x, b.y - 1, b.z, 2, 1.2, 0.9);
+      save.flush();
     }
   }
   // 测速点
@@ -324,9 +368,11 @@ function skills(dt) {
         skillScore += pts;
         hud.msg(`测速 ${kmh | 0} km/h  +${pts}`);
         audio.blip(660);
+        save.flush();
       }
     }
   }
+  save.flush();
   hud.setScore(skillScore, topSpeed, boardsHit);
 }
 
@@ -391,6 +437,7 @@ function loop() {
     camera.lookAt(p.x, p.y + 0.8, p.z);
   } else if (!paused) {
     input.update(dt);
+    if (input.camPressed) { input.camPressed = false; cycleCam(); }
     phys.update(dt, input, groundInfo);
     collide(dt);
     skills(dt);
@@ -400,7 +447,13 @@ function loop() {
     car.group.rotation.order = 'YXZ';
     car.group.rotation.y = phys.heading;
     car.group.rotation.x = -Math.atan(phys.slopePitch) * (phys.airborne ? 0 : 1);
-    car.group.rotation.z = Math.atan(phys.slopeRoll) * (phys.airborne ? 0 : 1) + phys.driftAmt * phys.steerVis * 0.06;
+    // 侧倾 = 坡度 + 转向离心（随速度） + 漂移额外倾角
+    const spdN = clamp(phys.speed / CFG.car.maxSpeed, 0, 1);
+    car.group.rotation.z = (phys.airborne ? 0 : Math.atan(phys.slopeRoll))
+      - phys.steerVis * spdN * 0.045
+      + phys.driftAmt * phys.steerVis * 0.07;
+    // 刹车灯：踩刹车或手刹时点亮
+    if (car.tail) car.tail.emissiveIntensity = (input.brake > 0 || input.handbrake) ? 9 : 2.2;
     // 车轮
     const spin = phys.vF * dt / 0.335;
     for (const k in car.wheels) {
@@ -419,11 +472,11 @@ function loop() {
       phys.pos.x - rx * rw + f.x * back, phys.pos.z - rz * rw + f.z * back,
       y, phys.heading, phys.driftAmt + (input.throttle && phys.speed < 8 ? 0.6 : 0));
     if (phys.driftAmt > 0.3) {
-      smoke.spawn(phys.pos.x + rx * rw + f.x * back, y, phys.pos.z + rz * rw + f.z * back, 0.5, 1.6, 1.2);
-      smoke.spawn(phys.pos.x - rx * rw + f.x * back, y, phys.pos.z - rz * rw + f.z * back, 0.5, 1.6, 1.2);
+      smoke.emit(phys.pos.x + rx * rw + f.x * back, y, phys.pos.z + rz * rw + f.z * back, 0.5, 1.6, 1.2);
+      smoke.emit(phys.pos.x - rx * rw + f.x * back, y, phys.pos.z - rz * rw + f.z * back, 0.5, 1.6, 1.2);
     }
     if (phys.landedImpact > 3) {
-      for (let i = 0; i < 8; i++) smoke.spawn(phys.pos.x, phys.pos.y, phys.pos.z, 2.4, 1.8, 1);
+      for (let i = 0; i < 8; i++) smoke.emit(phys.pos.x, phys.pos.y, phys.pos.z, 2.4, 1.8, 1);
       phys.landedImpact = 0;
     }
     smoke.update(dt);
@@ -447,14 +500,23 @@ function loop() {
     sun.position.copy(sun.target.position).addScaledVector(sd, 320);
 
     updateCamera(dt);
-    // 音效
-    const gearN = phys.vF < -0.5 ? 'R' : (phys.speed < 0.5 ? 'N' : Math.min(5, 1 + (phys.speed / CFG.car.maxSpeed * 5) | 0));
+    // 音效：7 段变速箱转速曲线，升挡转速回落
+    const vAbs = Math.abs(phys.vF);
+    const GEARS = [0, 13, 24, 37, 52, 70, 92];
+    let rpm;
+    let gi = 1;
+    if (phys.speed < 0.5) rpm = 0.18 + (input.throttle > 0 ? 0.15 : 0);
+    else {
+      while (gi < 6 && vAbs > GEARS[gi]) gi++;
+      rpm = 0.3 + 0.7 * (vAbs - GEARS[gi - 1]) / (GEARS[gi] - GEARS[gi - 1]);
+    }
     audio.update(
-      clamp((phys.speed % (CFG.car.maxSpeed / 5)) / (CFG.car.maxSpeed / 5) * 0.8 + 0.25 + (input.throttle ? 0.1 : 0), 0, 1),
+      clamp(rpm + (input.throttle > 0 ? 0.06 : 0), 0, 1),
       phys.driftAmt, clamp(phys.speed / CFG.car.nitroMax, 0, 1), phys.nitroOn);
     // HUD
     if (!NOUI) {
-      hud.drawSpeedo(phys.speed * 3.6, phys.nitro, phys.nitroOn, String(gearN), phys.drifting);
+      const gearN = phys.vF < -0.5 ? 'R' : (phys.speed < 0.5 ? 'N' : String(gi));
+      hud.drawSpeedo(phys.speed * 3.6, phys.nitro, phys.nitroOn, gearN, phys.drifting);
       hud.drawMinimap(phys.pos.x, phys.pos.z, phys.heading, world.boards);
     }
   }
