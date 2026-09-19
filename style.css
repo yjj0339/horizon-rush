@@ -1,0 +1,120 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body, #app { width: 100%; height: 100%; overflow: hidden; }
+body { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; background: #e8f1f8; }
+#gl { display: block; width: 100%; height: 100%; }
+.hidden { display: none !important; }
+
+/* ---------- 加载页 ---------- */
+#loading {
+  position: fixed; inset: 0; z-index: 50;
+  background: linear-gradient(160deg, #fdf6ec 0%, #e3f0fa 55%, #d3e6f5 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.load-card { text-align: center; width: min(460px, 86vw); }
+.load-logo {
+  font-size: 46px; font-weight: 900; letter-spacing: 6px; color: #17304a;
+  text-shadow: 0 2px 0 #fff;
+}
+.load-logo span {
+  display: block; font-size: 15px; letter-spacing: 8px; color: #f2571f; margin-top: 4px;
+}
+.load-bar {
+  margin: 26px auto 12px; height: 8px; border-radius: 4px;
+  background: #ffffff88; border: 1px solid #c2d2e2; overflow: hidden;
+}
+#load-fill {
+  width: 0%; height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, #f2571f, #ffc53c);
+  transition: width .2s;
+}
+#load-text { color: #5a6c80; font-size: 13px; letter-spacing: 2px; }
+
+/* ---------- 主菜单 ---------- */
+#menu {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 70%, #ffffff00 40%, #12305a55 100%);
+}
+.menu-card {
+  width: min(480px, 90vw); padding: 30px 34px 24px;
+  background: #fbf8f1e8; backdrop-filter: blur(10px);
+  border: 1px solid #ffffff; border-radius: 18px;
+  box-shadow: 0 24px 70px #0c1a2c55; text-align: center;
+}
+.menu-card h1 { font-size: 34px; font-weight: 900; color: #17304a; letter-spacing: 3px; }
+.menu-card h1 em { font-style: normal; color: #f2571f; }
+.menu-card .sub { color: #60758c; font-size: 12px; letter-spacing: 3px; margin: 6px 0 18px; }
+.paint-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+.paint {
+  width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
+  border: 3px solid #fff; box-shadow: 0 3px 10px #20304a33; transition: transform .15s;
+}
+.paint:hover { transform: scale(1.12); }
+.paint.sel { outline: 3px solid #f2571f; outline-offset: 2px; }
+.menu-btns { display: flex; gap: 12px; justify-content: center; }
+.menu-btns button {
+  font: inherit; font-size: 15px; font-weight: 700; letter-spacing: 2px;
+  padding: 12px 22px; border-radius: 10px; border: 1px solid #d8cfc0;
+  background: #fff; color: #2a3d55; cursor: pointer; transition: all .15s;
+}
+.menu-btns button:hover { transform: translateY(-2px); box-shadow: 0 8px 18px #1a2c4430; }
+.menu-btns .primary {
+  background: linear-gradient(135deg, #f2571f, #e63d1f); color: #fff; border: none;
+  box-shadow: 0 8px 22px #f2571f55;
+}
+.help { margin-top: 18px; color: #5a6c80; font-size: 12px; line-height: 1.9; }
+.help b { color: #f2571f; }
+.help .tip { color: #8a97a5; font-size: 11px; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+#minimap {
+  position: absolute; top: 16px; left: 16px;
+  border-radius: 14px; border: 2px solid #ffffffcc;
+  box-shadow: 0 8px 24px #12233a44; background: #eef3f9;
+}
+#speedo { position: absolute; right: 18px; bottom: 14px; }
+#msg {
+  position: absolute; top: 18%; width: 100%; text-align: center;
+  font-size: 34px; font-weight: 900; color: #fff; letter-spacing: 3px;
+  text-shadow: 0 2px 12px #0c1a2caa, 0 0 34px #ffc53c88;
+  opacity: 0; transition: opacity .25s;
+}
+#msg.show { opacity: 1; }
+#score-panel {
+  position: absolute; top: 16px; right: 16px; text-align: right;
+  padding: 10px 16px; border-radius: 12px;
+  background: #fbf8f1d9; border: 1px solid #ffffff;
+  box-shadow: 0 8px 24px #12233a33; color: #33465e; font-size: 13px;
+}
+.score-line b { color: #f2571f; font-size: 17px; margin-left: 4px; }
+#pause {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: #0e1a2a55; color: #fff; font-size: 26px; letter-spacing: 6px; font-weight: 700;
+}
+
+/* ---------- 触屏 ---------- */
+#touch { position: fixed; inset: 0; z-index: 35; pointer-events: none; }
+.t-left { position: absolute; left: 14px; bottom: 18px; display: flex; gap: 12px; }
+.t-right { position: absolute; right: 14px; bottom: 18px; display: flex; gap: 12px; align-items: flex-end; }
+.tbtn {
+  pointer-events: auto; user-select: none; -webkit-user-select: none;
+  width: 74px; height: 74px; border-radius: 50%;
+  background: #ffffffc8; border: 2px solid #ffffff;
+  box-shadow: 0 6px 18px #12233a44; color: #2a3d55;
+  font-size: 26px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+}
+.tbtn.small { width: 60px; height: 60px; font-size: 14px; }
+.tbtn.on { background: #f2571fd8; color: #fff; }
+
+/* ---------- 手机竖屏适配 ---------- */
+@media (max-width: 700px) {
+  #minimap { width: 112px !important; height: 112px !important; top: 10px; left: 10px; }
+  #speedo { right: 6px; bottom: 108px; }
+  #speedo canvas { width: 138px; height: 138px; }
+  #score-panel { font-size: 11px; padding: 6px 10px; top: 10px; right: 10px; }
+  .score-line b { font-size: 14px; }
+  .tbtn { width: 62px; height: 62px; font-size: 22px; }
+  .tbtn.small { width: 54px; height: 54px; font-size: 12px; }
+  #msg { font-size: 24px; }
+}
