@@ -20,16 +20,23 @@ export class Traffic {
     ];
     for (let i = 0; i < 14; i++) {
       const lane = lanes[i % 4];
-      this.spawn(sedanScene, rng, {
+      this.addCar(sedanScene, rng, {
         type: 'ring', lane, theta: rng() * Math.PI * 2,
         speed: 21 + rng() * 14,
       });
     }
     // 海岸路：x=651 南行，x=659 北行
     for (let i = 0; i < 6; i++) {
-      this.spawn(sedanScene, rng, {
+      this.addCar(sedanScene, rng, {
         type: 'coast', x: i % 2 ? 651 : 659, dir: i % 2 ? 1 : -1,
         z: -800 + rng() * 1600, speed: 15 + rng() * 8,
+      });
+    }
+    // 东大道：z=±5 双向直线车流
+    for (let i = 0; i < 6; i++) {
+      this.addCar(sedanScene, rng, {
+        type: 'avenue', dir: i % 2 ? 1 : -1,
+        x: 100 + rng() * 520, lane: i % 2 ? -5 : 5, speed: 14 + rng() * 8,
       });
     }
     // 城市外环巡游（沿最外圈街道）
@@ -38,14 +45,14 @@ export class Traffic {
       [CX - E, -E], [CX + E, -E], [CX + E, E], [CX - E, E],
     ];
     for (let i = 0; i < 8; i++) {
-      this.spawn(sedanScene, rng, {
+      this.addCar(sedanScene, rng, {
         type: 'city', loop, seg: (rng() * 4) | 0, t: rng(),
         speed: 9 + rng() * 5,
       });
     }
   }
 
-  spawn(sedanScene, rng, p) {
+  addCar(sedanScene, rng, p) {
     const grp = sedanScene.clone(true);
     const color = COLORS[(rng() * COLORS.length) | 0];
     grp.traverse(o => {
@@ -80,6 +87,12 @@ export class Traffic {
         if (c.z < -810) c.z = 810;
         x = c.x; z = c.z;
         heading = c.dir > 0 ? 0 : Math.PI;
+      } else if (c.type === 'avenue') {
+        c.x += c.speed * dt * c.dir;
+        if (c.x > 650) c.x = 95;
+        if (c.x < 90) c.x = 648;
+        x = c.x; z = c.lane;
+        heading = c.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       } else {
         // 城市矩形环
         const L = c.loop;
