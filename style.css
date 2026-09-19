@@ -43,7 +43,8 @@ body { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; bac
 }
 .menu-card h1 { font-size: 34px; font-weight: 900; color: #17304a; letter-spacing: 3px; }
 .menu-card h1 em { font-style: normal; color: #f2571f; }
-.menu-card .sub { color: #60758c; font-size: 12px; letter-spacing: 3px; margin: 6px 0 18px; }
+.menu-card .sub { color: #60758c; font-size: 12px; letter-spacing: 3px; margin: 6px 0 10px; }
+.menu-card .records { color: #8a6a2a; font-size: 12px; margin-bottom: 14px; letter-spacing: 1px; }
 .paint-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
 .paint {
   width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
@@ -93,6 +94,17 @@ body { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; bac
   background: #0e1a2a55; color: #fff; font-size: 26px; letter-spacing: 6px; font-weight: 700;
 }
 
+/* ---------- 触屏小按钮（暂停/视角/静音） ---------- */
+#topbtns {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  display: none; gap: 10px;
+}
+body.touch #topbtns { display: flex; }
+.tbtn.mini {
+  width: 44px; height: 44px; border-radius: 12px; font-size: 20px;
+  background: #fbf8f1cc; cursor: pointer;
+}
+
 /* ---------- 触屏 ---------- */
 #touch { position: fixed; inset: 0; z-index: 35; pointer-events: none; }
 .t-left { position: absolute; left: 14px; bottom: 18px; display: flex; gap: 12px; }
@@ -116,5 +128,10 @@ body { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; bac
   .score-line b { font-size: 14px; }
   .tbtn { width: 62px; height: 62px; font-size: 22px; }
   .tbtn.small { width: 54px; height: 54px; font-size: 12px; }
+  .tbtn.mini { width: 40px; height: 40px; font-size: 17px; }
   #msg { font-size: 24px; }
+}
+/* 宽屏时菜单卡靠左，右侧露出旋转展示的跑车 */
+@media (min-width: 1000px) {
+  #menu { justify-content: flex-start; padding-left: 7vw; }
 }
