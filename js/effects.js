@@ -83,7 +83,7 @@ export class Smoke {
     this.free = [];
     for (let i = max - 1; i >= 0; i--) this.free.push(i);
   }
-  spawn(x, y, z, spread = 0.6, size = 1.4, life = 1.1) {
+  emit(x, y, z, spread = 0.6, size = 1.4, life = 1.1) {
     if (!this.free.length) return;
     const i = this.free.pop();
     this.pos[i * 3] = x + (Math.random() - 0.5) * spread;
