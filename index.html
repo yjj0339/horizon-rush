@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>疾驰地平线 · 都会嘉年华</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three.module.js",
+  "three/addons/": "./vendor/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="gl"></canvas>
+
+  <!-- 加载页 -->
+  <div id="loading">
+    <div class="load-card">
+      <div class="load-logo">疾驰地平线<span>HORIZON RUSH · 都会嘉年华</span></div>
+      <div class="load-bar"><div id="load-fill"></div></div>
+      <div id="load-text">正在生成开放世界…</div>
+    </div>
+  </div>
+
+  <!-- 主菜单 -->
+  <div id="menu" class="hidden">
+    <div class="menu-card">
+      <h1>疾驰地平线 <em>都会嘉年华</em></h1>
+      <p class="sub">HORIZON RUSH FESTIVAL · 开放世界自由狂飙</p>
+      <div class="paint-row" id="paint-row"></div>
+      <div class="menu-btns">
+        <button id="btn-start" class="primary">进入嘉年华</button>
+        <button id="btn-glow">霓虹底盘灯：关</button>
+      </div>
+      <div class="help">
+        <b>W/S</b> 油门·刹车　<b>A/D</b> 转向　<b>空格</b> 手刹漂移<br>
+        <b>Shift</b> 氮气　<b>C</b> 视角　<b>R</b> 复位　<b>G</b> 霓虹灯　<b>M</b> 静音<br>
+        <span class="tip">自由探索：漂移 / 飞跃 / 撞奖励牌 / 过测速点 都能赚技巧分</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <canvas id="minimap" width="196" height="196"></canvas>
+    <div id="msg"></div>
+    <div id="score-panel">
+      <div class="score-line">技巧积分 <b id="skill-score">0</b></div>
+      <div class="score-line">最高时速 <b id="top-speed">0</b> km/h</div>
+      <div class="score-line">奖励牌 <b id="boards">0</b>/12</div>
+    </div>
+    <div id="speedo"><canvas id="speedo-cv" width="240" height="240"></canvas></div>
+    <div id="pause" class="hidden">已暂停 · 按 Esc 继续</div>
+  </div>
+
+  <!-- 触屏控件 -->
+  <div id="touch" class="hidden">
+    <div class="t-left">
+      <div class="tbtn" id="t-l">◀</div>
+      <div class="tbtn" id="t-r">▶</div>
+    </div>
+    <div class="t-right">
+      <div class="tbtn small" id="t-n">氮气</div>
+      <div class="tbtn small" id="t-b">刹车</div>
+      <div class="tbtn" id="t-g">油门</div>
+    </div>
+  </div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
